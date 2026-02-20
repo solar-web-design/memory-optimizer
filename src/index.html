@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory Optimizer</title>
+  <link rel="stylesheet" href="index.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Title Bar -->
+  <div class="title-bar" id="titleBar">
+    <div class="title-bar-left">
+      <span class="title-icon">🧠</span>
+      <span class="title-text">Memory Optimizer</span>
+    </div>
+    <div class="title-bar-controls">
+      <button class="title-btn" id="btnMinimize" title="최소화">─</button>
+      <button class="title-btn" id="btnMaximize" title="최대화">□</button>
+      <button class="title-btn title-btn-close" id="btnClose" title="닫기">✕</button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="app-container">
+    <!-- Navigation -->
+    <nav class="nav-bar">
+      <button class="nav-btn active" data-view="dashboard" id="navDashboard">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">대시보드</span>
+      </button>
+      <button class="nav-btn" data-view="processes" id="navProcesses">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">프로세스</span>
+      </button>
+      <button class="nav-btn" data-view="settings" id="navSettings">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">설정</span>
+      </button>
+    </nav>
+
+    <!-- Dashboard View -->
+    <div class="view active" id="viewDashboard">
+      <!-- Gauges Row -->
+      <div class="gauges-row">
+        <div class="gauge-card glass-card" id="memoryGaugeCard">
+          <div class="gauge-header">메모리 사용량</div>
+          <div class="gauge-container">
+            <canvas id="memoryGauge" width="180" height="180"></canvas>
+            <div class="gauge-center">
+              <span class="gauge-value" id="memoryPercent">0%</span>
+            </div>
+          </div>
+          <div class="gauge-detail" id="memoryDetail">0 / 0 GB</div>
+        </div>
+
+        <div class="gauge-card glass-card" id="cpuGaugeCard">
+          <div class="gauge-header">CPU 사용률</div>
+          <div class="gauge-container">
+            <canvas id="cpuGauge" width="180" height="180"></canvas>
+            <div class="gauge-center">
+              <span class="gauge-value" id="cpuPercent">0%</span>
+            </div>
+          </div>
+          <div class="gauge-detail" id="cpuDetail">0 코어</div>
+        </div>
+
+        <div class="gauge-card glass-card" id="freeMemCard">
+          <div class="gauge-header">가용 메모리</div>
+          <div class="free-mem-display">
+            <span class="free-mem-value" id="freeMemValue">0</span>
+            <span class="free-mem-unit">GB</span>
+          </div>
+          <div class="free-mem-bar-container">
+            <div class="free-mem-bar" id="freeMemBar"></div>
+          </div>
+          <div class="gauge-detail" id="freeMemDetail">사용 가능</div>
+        </div>
+      </div>
+
+      <!-- History Chart -->
+      <div class="chart-section glass-card">
+        <div class="chart-header">
+          <span class="chart-title">📈 메모리 사용 추이</span>
+          <div class="chart-range-buttons">
+            <button class="range-btn active" data-range="1h">1시간</button>
+            <button class="range-btn" data-range="6h">6시간</button>
+            <button class="range-btn" data-range="24h">24시간</button>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="historyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="actions-row">
+        <button class="action-btn primary-btn" id="btnOptimizeAll">
+          <span class="action-icon">⚡</span>
+          <span>전체 최적화</span>
+        </button>
+        <div class="auto-optimize-status glass-card" id="autoOptimizeStatus">
+          <span class="status-dot" id="autoStatusDot"></span>
+          <span id="autoStatusText">자동 최적화: 꺼짐</span>
+        </div>
+      </div>
+
+      <!-- Top Processes Preview -->
+      <div class="top-processes glass-card">
+        <div class="section-header">
+          <span>🔝 상위 메모리 소비 프로세스</span>
+          <button class="link-btn" id="btnShowAllProcesses">전체 보기 →</button>
+        </div>
+        <div class="process-list-preview" id="topProcessList">
+          <!-- Dynamic -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Processes View -->
+    <div class="view" id="viewProcesses">
+      <div class="processes-header">
+        <h2>📋 프로세스 목록</h2>
+        <div class="process-controls">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="processSearch" placeholder="프로세스 검색..." />
+          </div>
+          <button class="action-btn secondary-btn" id="btnTrimSelected">
+            <span>🧹 선택 정리</span>
+          </button>
+          <button class="action-btn primary-btn" id="btnOptimizeAll2">
+            <span>⚡ 전체 최적화</span>
+          </button>
+        </div>
+      </div>
+      <div class="process-table-container glass-card">
+        <table class="process-table" id="processTable">
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" id="checkAll" /></th>
+              <th class="col-status"></th>
+              <th class="col-name sortable" data-sort="name">프로세스 이름 <span class="sort-arrow">↕</span></th>
+              <th class="col-pid sortable" data-sort="pid">PID <span class="sort-arrow">↕</span></th>
+              <th class="col-memory sortable active-sort" data-sort="memory">메모리 <span class="sort-arrow">↓</span></th>
+              <th class="col-cpu sortable" data-sort="cpu">CPU (s) <span class="sort-arrow">↕</span></th>
+              <th class="col-actions">작업</th>
+            </tr>
+          </thead>
+          <tbody id="processTableBody">
+            <!-- Dynamic -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Settings View -->
+    <div class="view" id="viewSettings">
+      <h2>⚙️ 설정</h2>
+
+      <div class="settings-section glass-card">
+        <h3>📋 자동 최적화</h3>
+        <div class="setting-row">
+          <label>자동 최적화</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="settAutoOptimize" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <label>메모리 임계값</label>
+          <div class="range-input-group">
+            <input type="range" id="settThreshold" min="50" max="95" value="80" />
+            <span class="range-value" id="settThresholdValue">80%</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <label>검사 주기</label>
+          <select id="settInterval">
+            <option value="10">10초</option>
+            <option value="30" selected>30초</option>
+            <option value="60">1분</option>
+            <option value="120">2분</option>
+            <option value="300">5분</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>최소 해제 대상</label>
+          <select id="settMinSize">
+            <option value="50">50 MB</option>
+            <option value="100" selected>100 MB</option>
+            <option value="200">200 MB</option>
+            <option value="500">500 MB</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>쿨다운</label>
+          <select id="settCooldown">
+            <option value="1">1분</option>
+            <option value="5" selected>5분</option>
+            <option value="10">10분</option>
+            <option value="30">30분</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section glass-card">
+        <h3>🔔 알림 설정</h3>
+        <div class="setting-row">
+          <label>알림 임계값</label>
+          <div class="range-input-group">
+            <input type="range" id="settAlertThreshold" min="50" max="95" value="70" />
+            <span class="range-value" id="settAlertThresholdValue">70%</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <label>시스템 트레이 알림</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="settAlertTray" checked />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <label>소리 알림</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="settAlertSound" checked />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section glass-card">
+        <h3>🚫 블랙리스트 (정리 제외 프로세스)</h3>
+        <div class="blacklist-container" id="blacklistContainer">
+          <!-- Dynamic -->
+        </div>
+        <div class="blacklist-add">
+          <input type="text" id="blacklistInput" placeholder="프로세스 이름 입력..." />
+          <button class="action-btn secondary-btn" id="btnAddBlacklist">+ 추가</button>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button class="action-btn primary-btn" id="btnSaveSettings">💾 저장</button>
+        <button class="action-btn secondary-btn" id="btnResetSettings">↩ 초기화</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Optimize Result Toast -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">최적화 중...</div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

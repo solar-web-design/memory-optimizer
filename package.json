@@ -1,0 +1,13 @@
+{
+  "name": "memory-optimizer",
+  "version": "1.0.0",
+  "description": "Windows 메모리 최적화 데스크톱 앱",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "keywords": ["memory", "optimizer", "windows", "electron"],
+  "author": "",
+  "license": "MIT"
+}
