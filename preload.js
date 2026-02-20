@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('api', {
     // History
     getHistory: (range) => ipcRenderer.invoke('get-history', range),
 
+    // Startup Programs
+    getStartupPrograms: () => ipcRenderer.invoke('get-startup-programs'),
+    toggleStartup: (id, enable) => ipcRenderer.invoke('toggle-startup', id, enable),
+
     // Events from main process
     onMonitorData: (callback) => {
         ipcRenderer.on('monitor-data', (event, data) => callback(data));

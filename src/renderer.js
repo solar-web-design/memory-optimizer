@@ -30,6 +30,7 @@
         setupNavigation();
         setupDashboardActions();
         setupProcessView();
+        setupStartupView();
         setupSettings();
         startGaugeAnimation();
 
@@ -79,6 +80,11 @@
         $(`.nav-btn[data-view="${viewName}"]`).classList.add('active');
         $$('.view').forEach(v => v.classList.remove('active'));
         $(`#view${capitalize(viewName)}`).classList.add('active');
+
+        // Auto-load startup programs when switching to startup view
+        if (viewName === 'startup' && startupPrograms.length === 0) {
+            loadStartupPrograms();
+        }
     }
 
     function capitalize(s) {
@@ -602,6 +608,218 @@
         }
 
         updateHistoryChart();
+    }
+
+    // ========== Startup Program Management ==========
+    let startupPrograms = [];
+    let startupSearchQuery = '';
+    let startupFilter = 'all';
+    let startupTogglingIds = new Set();
+
+    function setupStartupView() {
+        // Search
+        $('#startupSearch').addEventListener('input', (e) => {
+            startupSearchQuery = e.target.value.toLowerCase();
+            renderStartupList();
+        });
+
+        // Filter buttons
+        $$('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                $$('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                startupFilter = btn.dataset.filter;
+                renderStartupList();
+            });
+        });
+
+        // Refresh button
+        $('#btnRefreshStartup').addEventListener('click', () => {
+            loadStartupPrograms();
+        });
+    }
+
+    async function loadStartupPrograms() {
+        const listContainer = $('#startupList');
+        listContainer.innerHTML = `
+            <div class="startup-loading">
+                <div class="loading-spinner small-spinner"></div>
+                <span>시작 프로그램을 불러오는 중...</span>
+            </div>
+        `;
+
+        try {
+            startupPrograms = await window.api.getStartupPrograms();
+            renderStartupList();
+            updateStartupSummary();
+        } catch (e) {
+            listContainer.innerHTML = `
+                <div class="startup-empty">
+                    <span class="startup-empty-icon">⚠️</span>
+                    <span>시작 프로그램 목록을 불러올 수 없습니다.</span>
+                </div>
+            `;
+        }
+    }
+
+    function getFilteredStartups() {
+        let filtered = [...startupPrograms];
+
+        // Search filter
+        if (startupSearchQuery) {
+            filtered = filtered.filter(s =>
+                s.name.toLowerCase().includes(startupSearchQuery) ||
+                s.command.toLowerCase().includes(startupSearchQuery)
+            );
+        }
+
+        // Type filter
+        if (startupFilter !== 'all') {
+            filtered = filtered.filter(s => {
+                switch (startupFilter) {
+                    case 'registry': return s.location === 'HKCU' || s.location === 'HKLM';
+                    case 'folder': return s.location === 'StartupFolder';
+                    case 'task': return s.location === 'TaskScheduler';
+                    default: return true;
+                }
+            });
+        }
+
+        // Sort: enabled first, then by name
+        filtered.sort((a, b) => {
+            if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        return filtered;
+    }
+
+    function getLocationBadge(location) {
+        switch (location) {
+            case 'HKCU': return '<span class="startup-location-badge badge-hkcu">👤 사용자</span>';
+            case 'HKLM': return '<span class="startup-location-badge badge-hklm">🖥️ 시스템</span>';
+            case 'StartupFolder': return '<span class="startup-location-badge badge-folder">📁 시작폴더</span>';
+            case 'TaskScheduler': return '<span class="startup-location-badge badge-task">⏰ 스케줄러</span>';
+            default: return '<span class="startup-location-badge">❓ 기타</span>';
+        }
+    }
+
+    function getStartupIcon(name, type) {
+        // Try to assign meaningful icons based on common program names
+        const nameLower = name.toLowerCase();
+        if (nameLower.includes('security') || nameLower.includes('defender') || nameLower.includes('antivirus')) return '🛡️';
+        if (nameLower.includes('update') || nameLower.includes('updater')) return '🔄';
+        if (nameLower.includes('discord')) return '💬';
+        if (nameLower.includes('steam')) return '🎮';
+        if (nameLower.includes('spotify')) return '🎵';
+        if (nameLower.includes('dropbox') || nameLower.includes('drive') || nameLower.includes('onedrive') || nameLower.includes('cloud')) return '☁️';
+        if (nameLower.includes('teams') || nameLower.includes('slack') || nameLower.includes('zoom')) return '📹';
+        if (nameLower.includes('nvidia') || nameLower.includes('amd') || nameLower.includes('intel') || nameLower.includes('realtek')) return '🔧';
+        if (nameLower.includes('chrome') || nameLower.includes('edge') || nameLower.includes('firefox') || nameLower.includes('browser')) return '🌐';
+        if (nameLower.includes('backup')) return '💾';
+        if (nameLower.includes('print') || nameLower.includes('printer')) return '🖨️';
+        if (nameLower.includes('bluetooth')) return '📶';
+        if (type === 'Task') return '📋';
+        if (type === 'Shortcut') return '🔗';
+        return '📦';
+    }
+
+    function renderStartupList() {
+        const listContainer = $('#startupList');
+        const filtered = getFilteredStartups();
+
+        if (filtered.length === 0) {
+            listContainer.innerHTML = `
+                <div class="startup-empty">
+                    <span class="startup-empty-icon">📭</span>
+                    <span>${startupSearchQuery || startupFilter !== 'all' ? '검색 결과가 없습니다.' : '시작 프로그램이 없습니다.'}</span>
+                </div>
+            `;
+            return;
+        }
+
+        listContainer.innerHTML = filtered.map(s => {
+            const icon = getStartupIcon(s.name, s.type);
+            const badge = getLocationBadge(s.location);
+            const isToggling = startupTogglingIds.has(s.id);
+            const disabledClass = s.enabled ? '' : 'disabled-card';
+
+            return `
+                <div class="startup-card ${disabledClass}" data-id="${escapeHtml(s.id)}">
+                    <div class="startup-icon-wrap">${icon}</div>
+                    <div class="startup-info">
+                        <div class="startup-name">${escapeHtml(s.name)}</div>
+                        <div class="startup-command" title="${escapeHtml(s.command)}">${escapeHtml(s.command)}</div>
+                    </div>
+                    <div class="startup-meta">
+                        ${badge}
+                        <label class="startup-toggle" title="${s.enabled ? '비활성화' : '활성화'}">
+                            <input type="checkbox" data-startup-id="${escapeHtml(s.id)}" 
+                                   ${s.enabled ? 'checked' : ''} 
+                                   ${isToggling ? 'disabled' : ''} />
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Toggle event handlers
+        listContainer.querySelectorAll('.startup-toggle input').forEach(toggle => {
+            toggle.addEventListener('change', async (e) => {
+                const id = e.target.dataset.startupId;
+                const enable = e.target.checked;
+                await handleStartupToggle(id, enable);
+            });
+        });
+
+        updateStartupSummary();
+    }
+
+    async function handleStartupToggle(id, enable) {
+        startupTogglingIds.add(id);
+        renderStartupList();
+
+        try {
+            const result = await window.api.toggleStartup(id, enable);
+
+            if (result.success) {
+                // Update local data
+                const item = startupPrograms.find(s => s.id === id);
+                if (item) {
+                    item.enabled = enable;
+                }
+                showToast('success', enable ? '✅ 활성화 완료' : '🚫 비활성화 완료', result.message);
+            } else {
+                showToast('error', '❌ 변경 실패', result.message);
+                // Reload to get accurate state
+                await loadStartupPrograms();
+            }
+        } catch (e) {
+            showToast('error', '❌ 오류 발생', '시작 프로그램 상태를 변경할 수 없습니다.');
+            await loadStartupPrograms();
+        }
+
+        startupTogglingIds.delete(id);
+        renderStartupList();
+    }
+
+    function updateStartupSummary() {
+        const total = startupPrograms.length;
+        const enabled = startupPrograms.filter(s => s.enabled).length;
+        const disabled = total - enabled;
+
+        $('#startupTotalCount').textContent = total;
+        $('#startupEnabledCount').textContent = enabled;
+        $('#startupDisabledCount').textContent = disabled;
+
+        // Impact level
+        let impact;
+        if (enabled <= 5) impact = '낮음';
+        else if (enabled <= 10) impact = '보통';
+        else if (enabled <= 15) impact = '높음';
+        else impact = '매우 높음';
+        $('#startupImpact').textContent = impact;
     }
 
     // ========== Settings ==========
